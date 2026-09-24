@@ -192,13 +192,8 @@ func RunCommand(log *logrus.Entry, commandName string, arg ...string) (string, e
 	log.Debug("Waiting for output goroutines to finish...")
 	wg.Wait()
 
-	// TODO: find why this returns -1. That may be related to pty implementation
-	/*if cmd.ProcessState.ExitCode() != 0 {
-		return sbErr.String() + sbOut.String(), fmt.Errorf("Cmd returned code %d", cmd.ProcessState.ExitCode())
-	}*/
-
-	// Combine stderr first (errors more visible), then stdout
-	return sbErr.String() + sbOut.String(), nil
+	// Preserve the process exit status so failed CLI commands fail the test.
+	return sbErr.String() + sbOut.String(), err
 }
 
 // run command with tty support and terminate it after timeout

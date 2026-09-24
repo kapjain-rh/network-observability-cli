@@ -58,6 +58,15 @@ func startPacketCollector() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	limitReached := false
+	// Notify the UI (or keep a detached collector alive) only after deferred
+	// output flushes and closure have finished.
+	defer func() {
+		if limitReached && !onLimitReached() {
+			<-utils.ExitChannel()
+		}
+	}()
+
 	defer f.Close()
 	log.Trace("Created pcapng file")
 
@@ -78,16 +87,26 @@ func startPacketCollector() {
 	log.Debug("Started collector")
 	collectorStarted = true
 
-	go func() {
-		<-utils.ExitChannel()
-		log.Debug("Ending collector")
-		close(flowPackets)
-		collector.Close()
-		log.Debug("Done")
-	}()
+	defer collector.Close()
+	timer := time.NewTimer(maxTime - currentTime().Sub(startupTime))
+	defer timer.Stop()
 
 	log.Trace("Ready ! Waiting for packets...")
-	for fp := range flowPackets {
+	for {
+		var fp *genericmap.Flow
+		select {
+		case <-timer.C:
+			limitReached = true
+			log.Infof("Capture reached %s, exiting collection...", maxTime)
+			return
+		case <-utils.ExitChannel():
+			return
+		case record, ok := <-flowPackets:
+			if !ok {
+				return
+			}
+			fp = record
+		}
 		if !captureStarted {
 			log.Debugf("Received first %d packets", len(flowPackets))
 		}
@@ -125,20 +144,9 @@ func startPacketCollector() {
 		// terminate capture if max bytes reached
 		totalBytes += int64(len(fp.GenericMap.Value))
 		if totalBytes > maxBytes {
-			if exit := onLimitReached(); exit {
-				log.Infof("Capture reached %s, exiting now...", sizestr.ToString(maxBytes))
-				return
-			}
-		}
-
-		// terminate capture if max time reached
-		now := currentTime()
-		duration := now.Sub(startupTime)
-		if int(duration) > int(maxTime) {
-			if exit := onLimitReached(); exit {
-				log.Infof("Capture reached %s, exiting now...", maxTime)
-				return
-			}
+			limitReached = true
+			log.Infof("Capture reached %s, exiting collection...", sizestr.ToString(maxBytes))
+			return
 		}
 
 		captureStarted = true

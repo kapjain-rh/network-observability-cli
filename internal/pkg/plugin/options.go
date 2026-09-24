@@ -41,7 +41,7 @@ var enumerated = map[string][]string{
 
 func booleanOption(key string) bool {
 	_, feature := featureEnv[key]
-	return feature || oneOf(key, "background", "headless", "yaml", "get-subnets", "privileged", "enable_all", "drops")
+	return feature || oneOf(key, "background", "headless", "yaml", "get-subnets", "privileged", "enable_all", "drops", "enable_openssl")
 }
 func connectionOption(key string) bool {
 	return oneOf(key, "namespace", "kubeconfig", "context", "output-dir")
@@ -119,6 +119,9 @@ func validateOption(mode string, opt option) error {
 	if allowed, ok := enumerated[key]; ok && !oneOf(value, allowed...) {
 		return fmt.Errorf("invalid --%s: %s", key, value)
 	}
+	if oneOf(key, "enable_openssl", "tls_plaintext_min_bytes", "tls_plaintext_preview_bytes", "tls_process_allowlist", "tls-keylog") && mode != "packets" {
+		return fmt.Errorf("--%s is invalid for %s", key, mode)
+	}
 	_, feature := featureEnv[key]
 	if mode == "packets" && (feature || oneOf(key, "sampling", "interfaces", "exclude_interfaces")) {
 		return fmt.Errorf("--%s is invalid for packets", key)
@@ -164,7 +167,7 @@ func validateValue(opt option) error {
 			return fmt.Errorf("query must not be empty")
 		}
 	}
-	return nil
+	return validatePlaintextValue(opt)
 }
 func (o *options) applyFilter(opt option, field string, defaults map[string]any) {
 	if opt.key == "drops" && opt.value == "false" {
@@ -209,7 +212,7 @@ func (o *options) applyOption(opt option) error {
 		o.maxBytes, err = strconv.ParseInt(opt.value, 10, 64)
 	case "log-level":
 		o.logLevel = opt.value
-	case "sampling", "node-selector", "query", "include_list", "interfaces", "exclude_interfaces", "privileged", "enable_all":
+	case "sampling", "node-selector", "query", "include_list", "interfaces", "exclude_interfaces", "privileged", "enable_all", "enable_openssl", "tls_plaintext_min_bytes", "tls_plaintext_preview_bytes", "tls_process_allowlist", "tls-keylog":
 	default:
 		if _, ok := featureEnv[opt.key]; !ok {
 			return fmt.Errorf("unknown option --%s", opt.key)

@@ -36,7 +36,7 @@ RUN make oc-commands GOARCH=$TARGETARCH PLUGIN_GOOS=linux \
 RUN mkdir -p output && chmod 0775 output
 
 # Create final image from ubi + built binary and command
-FROM --platform=linux/$TARGETARCH registry.access.redhat.com/ubi9/ubi-minimal:1789349414
+FROM --platform=linux/$TARGETARCH registry.access.redhat.com/ubi9/ubi-minimal:1789639833
 
 RUN microdnf install -y tar && \
     microdnf clean all

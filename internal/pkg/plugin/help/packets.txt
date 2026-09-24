@@ -28,6 +28,11 @@ Filters:
   --tcp_flags:                  filter TCP flags                                      (default: n/a)
 
 Options:
+  --enable_openssl:             capture TLS plaintext via OpenSSL uprobes (default: false; enables privileged mode)
+  --tls_process_allowlist:      restrict TLS uprobes to named processes (csv, e.g. nginx,envoy)
+  --tls_plaintext_min_bytes:    drop plaintext events shorter than N bytes (default: 0)
+  --tls_plaintext_preview_bytes: plaintext preview length (default: 256; 0 = full payload)
+  --tls-keylog:                 snapshot a local SSLKEYLOGFILE into a capture Secret for pcapng decryption
   --background:                 run in background                                     (default: false)
   --copy:                       copy the output files locally                         (default: prompt)
   --log-level:                  components logs                                       (default: info)
@@ -40,3 +45,11 @@ Examples:
     netobserv packets --port=8080
   Capture packets on specific nodes (labeled with 'netobserv=true') and port, for a maximum of 100MB:
     netobserv packets --node-selector=netobserv:true --port=80 --max-bytes=100000000
+  Capture OpenSSL plaintext scoped to a pod and port:
+    netobserv packets --port=8443 --enable_openssl --peer_ip=<pod-ip>
+  Capture OpenSSL plaintext scoped by process:
+    netobserv packets --port=8443 --enable_openssl --tls_process_allowlist=nginx
+    # readable output: output/plaintext/<timestamp>.jsonl (PlaintextDisplay field)
+  Embed a TLS key log snapshot in pcapng:
+    netobserv packets --port=443 --tls-keylog=/path/to/keylog.txt
+    # --yaml includes the sensitive key log in a Secret; protect the generated file.

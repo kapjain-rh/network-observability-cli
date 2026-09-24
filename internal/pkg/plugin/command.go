@@ -64,6 +64,9 @@ func NewCommand(version string) *cobra.Command {
 		if err != nil {
 			return err
 		}
+		if err = confirmPlaintext(o, c.InOrStdin(), c.OutOrStdout(), c.ErrOrStderr()); err != nil {
+			return err
+		}
 		if o.yaml && oneOf(mode, "flows", "packets", "metrics") {
 			return writeCaptureYAML(c, o)
 		}

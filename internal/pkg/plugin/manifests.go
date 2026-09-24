@@ -68,6 +68,9 @@ func buildManifests(o *options, openshift bool, subnets []any) (*manifests, erro
 	}
 	setEnv(&m.agent.Spec.Template.Spec.Containers[0], "FLP_CONFIG", pipeline)
 	m.buildCollector(o, tls)
+	if err := m.addKeylog(o); err != nil {
+		return nil, err
+	}
 	return m, nil
 }
 func (m *manifests) loadResources(o *options, openshift, tls bool) error {
@@ -139,7 +142,8 @@ func (m *manifests) buildAgent(o *options) error {
 			m.agent.Spec.Template.Spec.NodeSelector[k] = val
 		}
 	}
-	privileged := o.enabled("privileged") || o.enabled("enable_pkt_drop") || o.enabled("enable_network_events") || o.enabled("enable_udn_mapping") || o.enabled("drops")
+	configurePlaintextAgent(&m.agent.Spec.Template.Spec, o)
+	privileged := o.enabled("enable_openssl") || o.enabled("privileged") || o.enabled("enable_pkt_drop") || o.enabled("enable_network_events") || o.enabled("enable_udn_mapping") || o.enabled("drops")
 	c.SecurityContext.Privileged = &privileged
 	c.SecurityContext.AllowPrivilegeEscalation = &privileged
 	for key, env := range featureEnv {
@@ -192,6 +196,12 @@ func (o *options) collectorCommand() []string {
 	args := []string{"/network-observability-cli", "get-" + o.mode, "--loglevel", o.logLevel, "--maxtime", o.maxTime.String(), "--namespace", o.namespace}
 	if o.mode != "metrics" {
 		args = append(args, "--maxbytes", fmt.Sprint(o.maxBytes))
+	}
+	for _, v := range o.values {
+		if v.key == "tls-keylog" {
+			args = append(args, "--tls-keylog", collectorKeylogPath)
+			break
+		}
 	}
 	opts := append([]string(nil), o.raw...)
 	if (o.yaml || o.headless) && !o.background {

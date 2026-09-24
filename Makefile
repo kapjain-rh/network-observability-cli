@@ -118,7 +118,7 @@ tests-e2e: oc-commands ## Run e2e tests using kind cluster
 	@rm -rf e2e/output
 	@rm -f cli-e2e-img.tar
 	go clean -testcache
-	$(OCI_BIN) build . -t ${IMAGE}
+	$(OCI_BIN) build --build-arg TARGETARCH=$(GOARCH) --build-arg VERSION="$(VERSION)" --build-arg COLLECTOR_IMAGE="$(IMAGE)" --build-arg AGENT_IMAGE="$(AGENT_IMAGE)" --build-arg PULL_POLICY="$(PULL_POLICY)" . -t ${IMAGE}
 	$(OCI_BIN) save -o cli-e2e-img.tar ${IMAGE}
 	GOOS=$(GOOS) go test -p 1 -timeout 30m -v -mod vendor -tags e2e ./e2e/...
 

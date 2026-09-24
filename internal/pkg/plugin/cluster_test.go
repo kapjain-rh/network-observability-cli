@@ -161,3 +161,19 @@ func TestConcurrentMetricsDashboards(t *testing.T) {
 	_, err = c.kube.CoreV1().ConfigMaps("openshift-config-managed").Get(ctx, "capture-one", metav1.GetOptions{})
 	assert.True(t, apierrors.IsNotFound(err))
 }
+
+func TestCollectorPullPolicyDoesNotDisableAgentPulls(t *testing.T) {
+	old := PullPolicy
+	PullPolicy = "Never"
+	t.Cleanup(func() { PullPolicy = old })
+	for _, mode := range []string{"flows", "packets", "metrics"} {
+		t.Run(mode, func(t *testing.T) {
+			o, err := parseOptions(mode, []string{"--protocol=TCP"})
+			mustNoError(t, err)
+			m, err := buildManifests(o, false, nil)
+			mustNoError(t, err)
+			assert.Equal(t, corev1.PullNever, m.pod.Spec.Containers[0].ImagePullPolicy)
+			assert.Equal(t, corev1.PullAlways, m.agent.Spec.Template.Spec.Containers[0].ImagePullPolicy)
+		})
+	}
+}

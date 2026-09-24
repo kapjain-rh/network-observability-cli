@@ -467,9 +467,7 @@ func (c *cluster) deployCapture(ctx context.Context, o *options, m *manifests, o
 	}
 	fmt.Fprintln(out, "daemonset.apps/netobserv-cli created")
 	fmt.Fprintln(out, "Waiting for capture agents...")
-	if os.Getenv("isE2E") != "true" {
-		err = c.waitAgents(ctx, o.namespace)
-	}
+	err = c.waitAgents(ctx, o.namespace)
 	if err != nil {
 		return fmt.Errorf("agent readiness: %w", err)
 	}

@@ -128,7 +128,8 @@ func (m *manifests) buildAgent(o *options) error {
 		return err
 	}
 	c := &m.agent.Spec.Template.Spec.Containers[0]
-	c.ImagePullPolicy = corev1.PullPolicy(PullPolicy)
+	// PullPolicy configures the collector image (preloaded in Kind tests).
+	// Agents keep their template policy because their image is pulled separately.
 	setEnv(c, "LOG_LEVEL", o.logLevel)
 	for _, v := range o.values {
 		switch v.key {

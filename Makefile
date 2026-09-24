@@ -57,7 +57,6 @@ ifneq ($(CLEAN_BUILD),)
 endif
 
 GOLANGCI_LINT_VERSION = v2.12.2
-BASH_VERSION = v4.2.0
 YQ_VERSION = v4.45.1
 
 # build a single arch target provided as argument
@@ -180,7 +179,7 @@ install-commands: commands ## Generate plugins and add them to /usr/bin/
 
 .PHONY: docs
 docs: oc-commands ## Generate asciidoc
-	./scripts/generate-doc.sh
+	CLI_BIN="./$(DIST_DIR)/oc-netobserv" ./scripts/generate-doc.sh
 
 .PHONY: update-config
 update-config: ## Update config from operator repo

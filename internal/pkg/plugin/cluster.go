@@ -348,6 +348,16 @@ func (c *cluster) run(ctx context.Context, o *options, in io.Reader, out, errOut
 		}
 		result = errors.Join(result, c.cleanup(cleanupCtx, o.namespace))
 	}()
+	if o.mode == "metrics" {
+		port, err := c.reserveMetricsPort(ctx, &owner)
+		if err != nil {
+			return err
+		}
+		if err := m.setMetricsPort(port); err != nil {
+			return err
+		}
+		fmt.Fprintf(out, "Reserved metrics host port %d\n", port)
+	}
 	if err = c.deployCapture(ctx, o, m, &owner, out); err != nil {
 		return err
 	}

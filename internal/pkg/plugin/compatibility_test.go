@@ -3,11 +3,8 @@ package plugin
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"testing"
 
@@ -16,8 +13,8 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-// These fixtures come from scripts/functions.sh before retiring the shell entry
-// point. Set UPDATE_BASH_FIXTURES=1 with Bash and yq installed to regenerate.
+// These fixed fixtures preserve output from the retired Bash implementation.
+// Keep them independent of the Go generator to detect compatibility regressions.
 func TestBashManifestParity(t *testing.T) {
 	t.Setenv("NETOBSERV_NAMESPACE", "")
 	t.Setenv("NETOBSERV_AGENT_IMAGE", "")
@@ -38,41 +35,7 @@ func TestBashManifestParity(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			fixture := filepath.Join("..", "..", "..", "e2e", "testdata", tc.name+".yaml")
-			if os.Getenv("UPDATE_BASH_FIXTURES") == "1" {
-				yq, err := exec.LookPath("yq")
-				mustNoError(t, err)
-				script := `source scripts/functions.sh
-source scripts/help.sh
-YQ_BIN="$1"
-command="$2"
-shift 2
-options=("$@")
-loadYAMLs
-manifest="$MANIFEST_OUTPUT_PATH/manifest.yml"
-trap 'rm -rf "$MANIFEST_OUTPUT_PATH"' EXIT
-case "$command" in
-flows) printf '%s\n' "$flowAgentYAML" > "$manifest"; setCollectorPipelineConfig "$manifest";;
-packets) printf '%s\n' "$packetAgentYAML" > "$manifest"; setCollectorPipelineConfig "$manifest";;
-metrics) printf '%s\n' "$metricAgentYAML" > "$manifest"; setMetricsPipelineConfig "$manifest";;
-esac
-parse_args >/dev/null
-cat "$manifest"
-`
-				args := append([]string{"-c", script, "--", yq, tc.mode}, tc.args...)
-				cmd := exec.Command("bash", args...)
-				cmd.Dir = "../../.."
-				cmd.Env = append(os.Environ(), "NETOBSERV_NAMESPACE=", "NETOBSERV_AGENT_IMAGE=")
-				b, err := cmd.Output()
-				if err != nil {
-					var e *exec.ExitError
-					if errors.As(err, &e) {
-						t.Log(string(e.Stderr))
-					}
-				}
-				mustNoError(t, err)
-				mustNoError(t, os.MkdirAll(filepath.Dir(fixture), 0755))
-				mustNoError(t, os.WriteFile(fixture, b, 0644))
-			}
+
 			b, err := os.ReadFile(fixture)
 			mustNoError(t, err)
 			var expected appsv1.DaemonSet
@@ -133,18 +96,14 @@ func TestCollectorArguments(t *testing.T) {
 	assert.Equal(t, command, m.pod.Spec.Containers[0].Command[4:])
 }
 func TestAllBashFlagsAccepted(t *testing.T) {
-	b, err := os.ReadFile("../../../scripts/help.sh")
+	b, err := os.ReadFile("../../../e2e/testdata/legacy-help-flags.txt")
 	mustNoError(t, err)
 	o, err := parseOptions("flows", []string{"--sport=1234", "--cidr=::/0", "or", "--cidr=10.0.0.0/8"})
 	mustNoError(t, err)
 	assert.Len(t, o.filters, 2)
 	assert.Equal(t, 1234, o.filters[0]["source_port"])
 	// Every flag documented in the Bash help must still appear in embedded help.
-	for _, line := range strings.Split(string(b), "\n") {
-		if !strings.Contains(line, `echo "  --`) {
-			continue
-		}
-		flag := strings.Fields(strings.TrimPrefix(strings.TrimSpace(line), `echo "  `))[0]
+	for _, flag := range strings.Fields(string(b)) {
 		found := false
 		for _, mode := range []string{"flows", "packets", "metrics"} {
 			text, err := helpFiles.ReadFile("help/" + mode + ".txt")
@@ -163,14 +122,9 @@ func mustNoError(t *testing.T, err error) {
 }
 
 func TestEveryBashOptionAccepted(t *testing.T) {
-	data, err := os.ReadFile("../../../scripts/functions.sh")
+	data, err := os.ReadFile("../../../e2e/testdata/legacy-options.txt")
 	mustNoError(t, err)
-	source := string(data)
-	_, source, found := strings.Cut(source, "function parse_args()")
-	if !found {
-		t.Fatal("Bash option parser not found")
-	}
-	cases := regexp.MustCompile(`(?m)^    \*?([a-z_-]+)\)`).FindAllStringSubmatch(source, -1)
+	cases := strings.Fields(string(data))
 	samples := map[string]string{
 		"sampling": "50", "interfaces": "eth0", "exclude_interfaces": "lo", "direction": "Ingress", "cidr": "10.0.0.0/8", "protocol": "TCP",
 		"sport": "80", "dport": "443", "port": "53", "sport_range": "1000-2000", "dport_range": "1000-2000", "port_range": "1000-2000",
@@ -178,8 +132,7 @@ func TestEveryBashOptionAccepted(t *testing.T) {
 		"peer_ip": "10.1.1.1", "peer_cidr": "10.2.0.0/16", "action": "Accept", "log-level": "debug", "max-time": "15m", "max-bytes": "1000",
 		"node-selector": "example.com/node:true", "include_list": "node",
 	}
-	for _, match := range cases {
-		key := match[1]
+	for _, key := range cases {
 		t.Run(key, func(t *testing.T) {
 			mode := "flows"
 			if key == "include_list" {

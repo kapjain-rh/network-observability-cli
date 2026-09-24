@@ -61,13 +61,13 @@ Run the tests without a cluster:
 KUBECONFIG= go test -mod=vendor ./...
 ```
 
-To regenerate the historical comparison fixtures with Bash and yq available:
+The historical fixtures and flag lists are fixed compatibility references saved
+before removing the Bash capture implementation. They are not regenerated from
+the Go implementation. Intentional behavior changes require explicit fixture
+review. The legacy entry point and its helper/injection scripts have been
+removed; independent documentation, config-update, and cluster-setup scripts
+remain. Documentation now reads help from the compiled Go binary.
 
-```sh
-UPDATE_BASH_FIXTURES=1 go test -mod=vendor ./internal/pkg/plugin -run TestBashManifestParity
-```
-
-The scripts are retained as a compatibility reference and for developer tooling;
 `make commands`, `make oc-commands`, and `make kubectl-commands` build Go binaries.
 Release archives and Krew selectors are OS/architecture specific.
 
@@ -135,3 +135,12 @@ API authentication and `pods/portforward` authorization. Direct pod-IP and pod
 proxy downloads are unavailable. Overriding `--listen` with a non-loopback
 address exposes an unauthenticated HTTP server and requires external access
 controls.
+
+Concurrent metrics captures reserve separate host ports in the range 9401–9500
+using namespace-owned ConfigMaps in `openshift-config-managed`. Atomic creation
+prevents captures from choosing the same port; ports already requested by pods
+are skipped. The agent listener and Service use the reserved port together.
+Reservations are garbage-collected with the capture namespace. This bounds the
+pool to 100 captures and does not detect host processes outside Kubernetes.
+Offline YAML retains the default port; change it consistently before manually
+applying multiple metrics manifests on the same nodes.
